@@ -8,8 +8,11 @@
  */
 
 const {setGlobalOptions} = require("firebase-functions");
-const {onRequest,onCall} = require("firebase-functions/https");
+const {onRequest, onCall, HttpsError} = require("firebase-functions/https");
 const logger = require("firebase-functions/logger");
+const admin = require("firebase-admin");
+
+admin.initializeApp();
 
 // For cost control, you can set the maximum number of containers that can be
 // running at the same time. This helps mitigate the impact of unexpected
@@ -44,5 +47,37 @@ exports.triggerAdd = onCall((request) => {
   return {
     message: "Addition successful",
     result: result
+  };
+});
+
+// Send Notification
+
+exports.sendPushNotification = onCall(async (request) => {
+  const { token, title, body } = request.data;
+
+  if (!token || !title || !body) {
+    throw new HttpsError(
+      "invalid-argument",
+      "token, title, and body are required"
+    );
+  }
+
+  const messageId = await admin.messaging().send({
+    token,
+    notification: {
+      title,
+      body,
+    },
+    android: {
+      priority: "high",
+      notification: {
+        channelId: "push_notifications",
+      },
+    },
+  });
+
+  return {
+    success: true,
+    messageId,
   };
 });
