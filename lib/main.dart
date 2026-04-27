@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:shallutask/firebase_options.dart';
+import 'package:shallutask/notification_service.dart';
 import 'package:shallutask/screens/home_screen.dart';
 
 @pragma('vm:entry-point')
@@ -13,6 +14,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  await initLocalNotifications();
   runApp(const MyApp());
 }
 

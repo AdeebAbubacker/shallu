@@ -1,53 +1,108 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_functions/cloud_functions.dart';
+import 'package:shallutask/notification_service.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
-  Future<void> callFunction() async {
-    final result = await FirebaseFunctions.instance
-        .httpsCallable('triggerAdd')
-        .call({"a": 8, "b": 6});
 
-    print(result.data);
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _requestPermission();
+    _listenForegroundMessages();
   }
 
-  Future<void> sendPushNotification() async {
-    final token = await FirebaseMessaging.instance.getToken();
+  Future<void> _requestPermission() async {
+    await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+  }
 
+  void _listenForegroundMessages() {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      final notification = message.notification;
+      if (notification != null) {
+        showLocalNotification(notification.title, notification.body);
+      }
+    });
+  }
+
+  Future<void> _sendPushNotification() async {
+    final token = await FirebaseMessaging.instance.getToken();
     if (token == null) {
-      print("No FCM token found");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No FCM token — grant notification permission'),
+          ),
+        );
+      }
       return;
     }
 
-    final result = await FirebaseFunctions.instance
-        .httpsCallable('sendPushNotification')
-        .call({
-          "token": token,
-          "title": "Hello!",
-          "body": "Notification from Firebase Cloud Function",
-        });
+    setState(() => _loading = true);
+    try {
+      await FirebaseFunctions.instance
+          .httpsCallable('sendPushNotification')
+          .call({
+            "token": token,
+            "title": "Hello!",
+            "body": "Notification from Firebase Cloud Function",
+          });
+    } on FirebaseFunctionsException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: ${e.message}')));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
-    print(result.data);
+  Future<void> _callAddFunction() async {
+    final result = await FirebaseFunctions.instance
+        .httpsCallable('triggerAdd')
+        .call({"a": 8, "b": 6});
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Result: ${result.data}')));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Scaffold(
-        body: Column(
+    return Scaffold(
+      appBar: AppBar(title: const Text('Firebase Demo')),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Center(
-              child: ElevatedButton(
-                onPressed: callFunction,
-                child: const Text("Add Numbers"),
-              ),
+            ElevatedButton(
+              onPressed: _callAddFunction,
+              child: const Text('Add Numbers'),
             ),
-            Center(
-              child: ElevatedButton(
-                onPressed: sendPushNotification,
-                child: const Text("Notification"),
-              ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loading ? null : _sendPushNotification,
+              child: _loading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Send Push Notification'),
             ),
           ],
         ),

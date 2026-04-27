@@ -71,7 +71,7 @@ exports.sendPushNotification = onCall(async (request) => {
     android: {
       priority: "high",
       notification: {
-        channelId: "push_notifications",
+        channelId: "high_importance_channel",
       },
     },
   });
